@@ -308,23 +308,57 @@ class Game {
             this.road.lastChange = currentTime;
         }
 
-        // 도로 부드러운 변경
+        // 도로 부드러운 변경과 충돌 감지 개선
         const prevX = this.road.x;
         const prevWidth = this.road.width;
         
         this.road.x += (this.road.targetX - this.road.x) * 0.02;
         this.road.width += (this.road.targetWidth - this.road.width) * 0.02;
 
-        // 도로 변경에 따른 플레이어 위치 조정
+        // 도로 변경에 따른 플레이어와 장애물 위치 조정
         if (prevWidth !== this.road.width || prevX !== this.road.x) {
-            // 도로 중앙을 기준으로 플레이어의 상대적 위치 계산
+            // 도로 중앙 기준 상대 위치 계산
             const roadCenter = prevX + (prevWidth / 2);
-            const playerOffsetFromCenter = (this.player.x + (this.player.width / 2)) - roadCenter;
-            const offsetRatio = playerOffsetFromCenter / (prevWidth / 2);
-            
-            // 새로운 도로 폭에 맞춰 플레이어 위치 조정
             const newRoadCenter = this.road.x + (this.road.width / 2);
-            this.player.x = newRoadCenter + (offsetRatio * (this.road.width / 2)) - (this.player.width / 2);
+            const widthRatio = this.road.width / prevWidth;
+
+            // 플레이어 위치 조정
+            const playerOffsetFromCenter = (this.player.x + (this.player.width / 2)) - roadCenter;
+            const newPlayerOffset = playerOffsetFromCenter * widthRatio;
+            this.player.x = (newRoadCenter + newPlayerOffset) - (this.player.width / 2);
+
+            // 장애물 위치도 같은 비율로 조정
+            this.gameState.obstacles.forEach(obstacle => {
+                const obstacleOffsetFromCenter = (obstacle.x + (obstacle.width / 2)) - roadCenter;
+                const newObstacleOffset = obstacleOffsetFromCenter * widthRatio;
+                obstacle.x = (newRoadCenter + newObstacleOffset) - (obstacle.width / 2);
+            });
+        }
+
+        // 충돌 체크 개선
+        for (let i = this.gameState.obstacles.length - 1; i >= 0; i--) {
+            const obstacle = this.gameState.obstacles[i];
+            obstacle.y += obstacle.speed;
+
+            // 도로 경계 내에 있는 장애물만 충돌 체크
+            if (obstacle.x >= this.road.x && 
+                obstacle.x + obstacle.width <= this.road.x + this.road.width) {
+                
+                if (this.checkCollision(this.player, obstacle)) {
+                    // 추가 검증: 실제 겹침 영역 계산
+                    const overlap = this.getCollisionOverlap(this.player, obstacle);
+                    if (overlap.width > 5 && overlap.height > 5) { // 최소 겹침 임계값
+                        this.gameState.isGameOver = true;
+                        return;
+                    }
+                }
+            }
+
+            // 화면을 벗어난 장애물 제거 및 점수 추가
+            if (obstacle.y > this.canvas.height) {
+                this.gameState.obstacles.splice(i, 1);
+                this.gameState.score += 10;
+            }
         }
 
         // 플레이어 이동 업데이트
@@ -350,6 +384,19 @@ class Game {
                 this.road.x + this.road.width - this.player.width - 10
             )
         );
+    }
+
+    // 충돌 영역 계산 함수 추가
+    getCollisionOverlap(rect1, rect2) {
+        const x1 = Math.max(rect1.x, rect2.x);
+        const x2 = Math.min(rect1.x + rect1.width, rect2.x + rect2.width);
+        const y1 = Math.max(rect1.y, rect2.y);
+        const y2 = Math.min(rect1.y + rect1.height, rect2.y + rect2.height);
+
+        return {
+            width: Math.max(0, x2 - x1),
+            height: Math.max(0, y2 - y1)
+        };
     }
 
     changeRoad() {
