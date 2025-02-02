@@ -139,11 +139,7 @@ class Game {
     }
 
     init() {
-        if (this.gameState.currentScreen === 'start') {
-            const name = prompt('Enter your name:') || 'Player';
-            this.gameState.playerName = name;
-        }
-
+        // alert 메시지 제거하고 이미 입력된 이름 사용
         this.isRunning = true;
         this.gameState.score = 0;
         this.gameState.isGameOver = false;
@@ -313,13 +309,47 @@ class Game {
         }
 
         // 도로 부드러운 변경
+        const prevX = this.road.x;
+        const prevWidth = this.road.width;
+        
         this.road.x += (this.road.targetX - this.road.x) * 0.02;
         this.road.width += (this.road.targetWidth - this.road.width) * 0.02;
 
-        // 플레이어 이동 범위 제한 수정
-        const leftBound = this.road.x + 20;
-        const rightBound = this.road.x + this.road.width - this.player.width - 20;
-        this.player.x = Math.max(leftBound, Math.min(this.player.x, rightBound));
+        // 도로 변경에 따른 플레이어 위치 조정
+        if (prevWidth !== this.road.width || prevX !== this.road.x) {
+            // 도로 중앙을 기준으로 플레이어의 상대적 위치 계산
+            const roadCenter = prevX + (prevWidth / 2);
+            const playerOffsetFromCenter = (this.player.x + (this.player.width / 2)) - roadCenter;
+            const offsetRatio = playerOffsetFromCenter / (prevWidth / 2);
+            
+            // 새로운 도로 폭에 맞춰 플레이어 위치 조정
+            const newRoadCenter = this.road.x + (this.road.width / 2);
+            this.player.x = newRoadCenter + (offsetRatio * (this.road.width / 2)) - (this.player.width / 2);
+        }
+
+        // 플레이어 이동 업데이트
+        const moveSpeed = this.player.speed;
+        if (this.player.moveLeft) {
+            this.player.x = Math.max(
+                this.road.x + 10, // 왼쪽 도로 경계 + 여유 공간
+                this.player.x - moveSpeed
+            );
+        }
+        if (this.player.moveRight) {
+            this.player.x = Math.min(
+                this.road.x + this.road.width - this.player.width - 10, // 오른쪽 도로 경계 - 여유 공간
+                this.player.x + moveSpeed
+            );
+        }
+
+        // 플레이어가 도로 밖으로 나가지 않도록 제한
+        this.player.x = Math.max(
+            this.road.x + 10,
+            Math.min(
+                this.player.x,
+                this.road.x + this.road.width - this.player.width - 10
+            )
+        );
     }
 
     changeRoad() {
